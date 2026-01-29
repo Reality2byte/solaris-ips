@@ -20,7 +20,7 @@
 # CDDL HEADER END
 #
 #
-# Copyright (c) 2019, 2025, Oracle and/or its affiliates.
+# Copyright (c) 2019, 2026, Oracle and/or its affiliates.
 #
 
 import pkg.no_site_packages
@@ -56,11 +56,30 @@ def start():
     if auto_reboot:
         try:
             reboot_hook = smf.get_prop(myfmri, 'config/reboot-check-hook')
-            check_before_reboot = os.access(reboot_hook, os.X_OK)
+            if not os.access(reboot_hook, os.X_OK):
+                print(f'{reboot_hook} not executable')
+                reboot_hook = False
         except smf.NonzeroExitException:
-            check_before_reboot = False
+            reboot_hook = False
+
+    try:
+        postupdate_hook = smf.get_prop(myfmri, 'config/postupdate-hook')
+        if not os.access(postupdate_hook, os.X_OK):
+            print(f'{postupdate_hook} not executable')
+            postupdate_hook = False
+    except smf.NonzeroExitException:
+        postupdate_hook = False
 
     cmd = ['/usr/bin/pkg']
+    try:
+        if pkg_image := smf.get_prop(myfmri, 'config/pkg_image'):
+            cmd.extend(['-R', pkg_image])
+            if auto_reboot and pkg_image != '/':
+                print('Auto reboot ignored when operating on non-active ' +
+                      f'image: {pkg_image}')
+                auto_reboot = False
+    except smf.NonzeroExitException:
+        pass
 
     try:
         packages = smf.get_prop(myfmri, 'config/packages')
@@ -136,6 +155,28 @@ def start():
         print(f'Image locked, sleeping for {wait_secs} seconds', flush=True)
         time.sleep(wait_secs)
 
+    try:
+        with open(parsable_output) as pkg_out:
+            pkgplan = json.loads(pkg_out.read())
+
+        new_be_created = pkgplan['create-new-be']
+        new_be_activated = pkgplan['activate-be']
+        bename = pkgplan['be-name']
+    except FileNotFoundError:
+        pass
+
+    # Avoid passing None as a BE name to the hook commands
+    if not bename:
+        bename = ""
+
+    # The postupdate_hook doesn't contribute to the service state and
+    # if configured it is always run regardless pkg success or fail.
+    if postupdate_hook:
+        hook_cmd = f"{postupdate_hook} {pkg_image} {pkg_status} {bename}"
+        print(f'Running postupdate-hook {hook_cmd}')
+        exitcode, output = subprocess.getstatusoutput(hook_cmd)
+        print(output)
+
     if pkg_status == pkgdefs.EXIT_NOP:
         return smf_include.SMF_EXIT_OK
     elif pkg_status == pkgdefs.EXIT_PKG_OOD:
@@ -162,18 +203,13 @@ def start():
         smf_include.smf_method_exit(smf_include.SMF_EXIT_DEGRADED,
                                     'update-failed', message)
 
-    with open(parsable_output) as pkg_out:
-        pkgplan = json.loads(pkg_out.read())
-
-    new_be_created = pkgplan['create-new-be']
-    new_be_activated = pkgplan['activate-be']
     if new_be_created and new_be_activated and auto_reboot:
-        if check_before_reboot:
-            print(f'Running reboot-check-hook {reboot_hook}')
-            exitcode, output = subprocess.getstatusoutput(reboot_hook)
+        if reboot_hook:
+            hook_cmd = f"{reboot_hook} {bename}"
+            print(f'Running reboot-check-hook {hook_cmd}')
+            exitcode, output = subprocess.getstatusoutput(hook_cmd)
             if exitcode != 0:
                 print(output)
-                bename = pkgplan['be-name']
                 print(f'Reboot Hook failed {exitcode}, removing {bename}')
                 # Remove the BE as a future auto-update may create the same BE.
                 # Leaving it risks it becoming stale and surprising the
@@ -181,7 +217,7 @@ def start():
                 try:
                     bemgmt.BEManager().destroy(bename)
                 except bemgmt.be_errors.BeMgmtError as e:
-                    print(f"BE destroy failed: {e}")
+                    print(f'BE destroy failed: {e}')
                     pass
                 message = f'Reboot Hook failed {exitcode}, see service log'
                 smf_include.smf_method_exit(smf_include.SMF_EXIT_DEGRADED,

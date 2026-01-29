@@ -6,11 +6,11 @@
 
 <refentry id="pkg-1">
 <refmeta><refentrytitle>pkg</refentrytitle><manvolnum>1</manvolnum>
-<refmiscinfo class="date">11 Feb 2022</refmiscinfo>
+<refmiscinfo class="date">14 Jan 2026</refmiscinfo>
 <refmiscinfo class="sectdesc">&man1;</refmiscinfo>
 <refmiscinfo class="software">&release;</refmiscinfo>
 <refmiscinfo class="arch">generic</refmiscinfo>
-<refmiscinfo class="copyright">Copyright (c) 2007, 2024, Oracle and/or its affiliates.</refmiscinfo>
+<refmiscinfo class="copyright">Copyright (c) 2007, 2026, Oracle and/or its affiliates.</refmiscinfo>
 </refmeta>
 <refnamediv>
 <refname>pkg</refname><refpurpose>Image Packaging System retrieval client</refpurpose>
@@ -2037,14 +2037,29 @@ is used to automatically reboot the system.</para>
 </listitem>
 </varlistentry>
 
+<varlistentry><term><literal>config/postupdate-hook</literal></term>
+<listitem><para>Path to an optional script or program that is run after any attempted
+update, even if the update fails. The arguments to the program are the
+value of <literal>config/pkg_image</literal>, the return value from pkg(1),
+and the new Boot Environment name if one was created. Note that if this program
+wishes to examine or modify the new Boot Environment it must mount it
+and unmount it on completion.</para>
+<para>The output of the program is appended to the SMF service log but
+its exit code does not affect the service state.</para>
+</listitem>
+</varlistentry>
+
 <varlistentry><term><literal>config/reboot-check-hook</literal></term>
 <listitem><para>Path to an optional executable script/program that returns 0 when it
-safe to perform the reboot.</para>
+safe to perform the reboot. It is passed the name of the new Boot Environment as
+an argument.</para>
 <para>The program may block until such time as it is safe to
 reboot, or may choose to return at any time with a non-zero exit code if the reboot
 should not be performed. If the reboot is not performed the service will enter
 the degraded state; any output from the command is used as the reason for the
-degraded state.</para>
+degraded state. If it returns non-zero any newly created Boot Environment is
+destroyed, ensuring that a future update can create the same named BE should it need to
+do so.</para>
 </listitem>
 </varlistentry>
 

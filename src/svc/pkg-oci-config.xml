@@ -19,7 +19,7 @@
 
   CDDL HEADER END
 
-  Copyright (c) 2024, 2025, Oracle and/or its affiliates.
+  Copyright (c) 2024, 2026, Oracle and/or its affiliates.
 
   NOTE:  This service manifest is not editable; its contents will
   be overwritten by package or patch operations, including
@@ -70,6 +70,10 @@
 
 	<property_group name='startd' type='framework'>
 		<propval name='duration' type='astring' value='transient' />
+	</property_group>
+
+	<property_group type='application' name='config'>
+		<propval name='pkg_image' type='astring' value='/' />
 	</property_group>
 
 	<template>

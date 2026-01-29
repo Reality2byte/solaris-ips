@@ -20,7 +20,7 @@
 # CDDL HEADER END
 #
 #
-# Copyright (c) 2024, 2025, Oracle and/or its affiliates.
+# Copyright (c) 2024, 2026, Oracle and/or its affiliates.
 #
 
 ''' Contact the OCI metadata service and store the ocids for
@@ -31,7 +31,9 @@ import gettext
 import locale
 import requests
 import smf_include
+import pkg.smf as smf
 import pkg.client.imageconfig
+import pkg.client.image
 import pkg.config as pkgcfg
 import pkg.misc
 
@@ -40,9 +42,16 @@ MDURL = 'http://169.254.169.254/opc/v2/instance/'
 CLIENT_VERSION = 83
 
 
-def write_config(metadata):
+def write_config(pkg_image, metadata):
     ''' Write out or clear the ocids '''
-    imgcfg = pkg.client.imageconfig.ImageConfig('/var/pkg/pkg5.image', '/')
+    cfgdir = os.path.join(pkg_image, pkg.image.img_user_prefix)
+    if os.path.isdir(cfgdir):
+        cfgfile = os.path.join(cfgdir, "pkg5.image")
+    else:
+        cfgdir = os.path.join(pkg_image, pkg.image.img_user_prefix)
+        cfgfile = os.path.join(cfgdir, pkg.image.img_root_prefix)
+
+    imgcfg = pkg.client.imageconfig.ImageConfig(cfgfile, pkg_image)
     for prop in ['id', 'image', 'tenantId']:
         if metadata and metadata[prop]:
             imgcfg.set_property('oci', prop, metadata[prop])
@@ -58,12 +67,18 @@ def start():
     ''' Cache OCIDs from metadata service into image props '''
 
     try:
+        image_dir = smf.get_prop(os.getenv('SMF_FMRI'), 'config/pkg_image')
+    except smf.NonzeroExitException:
+        image_dir = '/'
+        pass
+
+    try:
         mdret = requests.get(MDURL, headers=HEADERS, timeout=10)
     except Exception as reason:
         metadata = None
     else:
         metadata = mdret.json()
-    write_config(metadata)
+    write_config(pkg_image, metadata)
 
     return smf_include.SMF_EXIT_OK
 
@@ -71,7 +86,12 @@ def start():
 def stop():
     ''' Remove any cached OCI ocids '''
 
-    write_config(None)
+    try:
+        image_dir = smf.get_prop(os.getenv('SMF_FMRI'), 'config/pkg_image')
+    except smf.NonzeroExitException:
+        pass
+
+    write_config(pkg_image, None)
 
     return smf_include.SMF_EXIT_OK
 
