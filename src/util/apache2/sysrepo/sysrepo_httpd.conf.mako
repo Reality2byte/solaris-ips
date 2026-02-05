@@ -65,6 +65,7 @@ LoadModule rewrite_module libexec/mod_rewrite.so
 LoadModule ssl_module libexec/mod_ssl.so
 LoadModule socache_memcache_module libexec/mod_socache_memcache.so
 LoadModule unixd_module libexec/mod_unixd.so
+LoadModule headers_module libexec/mod_headers.so
 <%!
     import os
     import sys
@@ -376,6 +377,9 @@ SSLProxyProtocol all
                         <Proxy "${uri}">
                             SSLProxyMachineCertificateFile ${sysrepo_runtime_dir}/proxy-creds-${pub}.pem
                             Require local
+                            % if xipkg_oci:
+                            RequestHeader set "X-IPkg-OCI" "${xipkg_oci}"
+                            % endif 
                         </Proxy>
                 % endif
         % endfor pub

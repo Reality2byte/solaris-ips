@@ -21,7 +21,7 @@
 #
 
 #
-# Copyright (c) 2011, 2025, Oracle and/or its affiliates.
+# Copyright (c) 2011, 2026, Oracle and/or its affiliates.
 #
 
 try:
@@ -54,6 +54,7 @@ try:
     import pkg.client.api
     import pkg.client.progress as progress
     import pkg.client.api_errors as apx
+    import pkg.client.imageconfig
     import pkg.digest as digest
     import pkg.misc as misc
     import pkg.portable as portable
@@ -605,9 +606,20 @@ def _chown_cache_dir(dir):
                 user=SYSREPO_USER, group="bin",
                 err=err))
 
+def _get_xipkg_oci(image_root):
+    """Retrieve the content for the X-IPkg-OCI header from the image config"""
+
+    icfg = pkg.client.imageconfig.ImageConfig('/var/pkg/pkg5.image', image_root)
+    xipkg_oci = {}
+    for ocid in ['id', 'image', 'tenantId']:
+        if ocid_value := icfg.get_property('oci', ocid):
+            xipkg_oci[ocid] = ocid_value
+
+    return xipkg_oci
+
 
 def _write_httpd_conf(runtime_dir, log_dir, template_dir, host, port, cache_dir,
-    cache_size, uri_pub_map, http_proxy, https_proxy):
+    cache_size, uri_pub_map, http_proxy, https_proxy, xipkg_oci):
     """Writes the apache configuration for the system repository.
 
     If http_proxy or http_proxy is supplied, it will override any proxy
@@ -696,7 +708,8 @@ def _write_httpd_conf(runtime_dir, log_dir, template_dir, host, port, cache_dir,
             cache_dir=cache_dir,
             cache_size=int(cache_size) * 1024,
             http_proxy=http_proxy,
-            https_proxy=https_proxy)
+            https_proxy=https_proxy,
+            xipkg_oci=xipkg_oci)
         httpd_conf_path = os.path.join(runtime_dir,
             SYSREPO_HTTP_FILENAME)
         httpd_conf_file = open(httpd_conf_path, "w")
@@ -894,9 +907,10 @@ def refresh_conf(image_root="/", port=None, runtime_dir=None,
             raise SysrepoException(
                 _("unable to create htdocs dir: {0}").format(err))
 
+        xipkg = _get_xipkg_oci(image_root)
         _write_httpd_conf(runtime_dir, log_dir, template_dir, host,
             port, cache_dir, cache_size, uri_pub_map, http_proxy,
-            https_proxy)
+            https_proxy, xipkg)
         _write_crypto_conf(runtime_dir, uri_pub_map)
         _write_publisher_response(uri_pub_map, htdocs_path,
             template_dir)
