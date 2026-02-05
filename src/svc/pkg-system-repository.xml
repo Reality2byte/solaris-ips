@@ -19,7 +19,7 @@
 
   CDDL HEADER END
 
-  Copyright (c) 2011, 2025, Oracle and/or its affiliates.
+  Copyright (c) 2011, 2026, Oracle and/or its affiliates.
 
   NOTE:  This service manifest is not editable; its contents will
   be overwritten by package or patch operations, including
@@ -57,6 +57,19 @@
 		    <service_fmri
 			value='svc:/system/filesystem/local:default'/>
 		</dependency>
+
+		<!--
+		  Wait for oci-image-config if it is enabled since
+                  sysrepo consumes pkg image data it configures.
+		-->
+		<dependency name='oci-image-config'
+		    grouping='optional_all'
+		    restart_on='error'
+		    type='service'>
+		    <service_fmri
+			value='svc:/application/pkg/oci-image-config:default'/>
+		</dependency>
+
 
 		<!--
 		  Wait for automounting to be available, as we may be
