@@ -27,11 +27,10 @@
     the original image, tenancy and instance in the [oci] section.
 '''
 
-import gettext
-import locale
+import os
 import requests
 import smf_include
-import pkg.smf as smf
+from pkg import smf
 import pkg.client.imageconfig
 import pkg.client.image
 import pkg.config as pkgcfg
@@ -44,12 +43,11 @@ CLIENT_VERSION = 83
 
 def write_config(pkg_image, metadata):
     ''' Write out or clear the ocids '''
-    cfgdir = os.path.join(pkg_image, pkg.image.img_user_prefix)
-    if os.path.isdir(cfgdir):
-        cfgfile = os.path.join(cfgdir, "pkg5.image")
+    if pkg_image == '/':
+        cfgdir = os.path.join(pkg_image, pkg.client.image.img_root_prefix)
     else:
-        cfgdir = os.path.join(pkg_image, pkg.image.img_user_prefix)
-        cfgfile = os.path.join(cfgdir, pkg.image.img_root_prefix)
+        cfgdir = os.path.join(pkg_image, pkg.client.image.img_user_prefix)
+    cfgfile = os.path.join(cfgdir, "pkg5.image")
 
     imgcfg = pkg.client.imageconfig.ImageConfig(cfgfile, pkg_image)
     for prop in ['id', 'image', 'tenantId']:
@@ -67,14 +65,13 @@ def start():
     ''' Cache OCIDs from metadata service into image props '''
 
     try:
-        image_dir = smf.get_prop(os.getenv('SMF_FMRI'), 'config/pkg_image')
+        pkg_image = smf.get_prop(os.getenv('SMF_FMRI'), 'config/pkg_image')
     except smf.NonzeroExitException:
-        image_dir = '/'
-        pass
+        pkg_image = '/'
 
     try:
         mdret = requests.get(MDURL, headers=HEADERS, timeout=10)
-    except Exception as reason:
+    except requests.RequestException:
         metadata = None
     else:
         metadata = mdret.json()
@@ -87,7 +84,7 @@ def stop():
     ''' Remove any cached OCI ocids '''
 
     try:
-        image_dir = smf.get_prop(os.getenv('SMF_FMRI'), 'config/pkg_image')
+        pkg_image = smf.get_prop(os.getenv('SMF_FMRI'), 'config/pkg_image')
     except smf.NonzeroExitException:
         pass
 
