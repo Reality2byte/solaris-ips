@@ -23,19 +23,20 @@
 # Copyright (c) 2019, 2026, Oracle and/or its affiliates.
 #
 
-import pkg.no_site_packages
-import pkg.smf as smf
-import pkg.client.pkgdefs as pkgdefs
-import bemgmt
-import smf_include
 import os
 import subprocess
-import rapidjson as json
 import time
+import pkg.no_site_packages  # pylint: disable=unused-import
+from pkg import smf
+from pkg.client import pkgdefs
+import bemgmt
+import smf_include
+import rapidjson as json
 
 
 def update_pkg():
     """ Attempt an update of pkg(7) """
+    print('Attempting update of pkg', flush=True)
     cmd = ['/usr/bin/pkg', 'update', '--deny-new-be', 'package/pkg']
     return subprocess.call(cmd)
 
@@ -52,11 +53,11 @@ def start():
     if 'degraded' in smf.get_prop(myfmri, 'restarter/state'):
         smf.clear(myfmri)
 
-    auto_reboot = (smf.get_prop(myfmri, 'config/auto-reboot') == 'true')
+    auto_reboot = smf.get_prop(myfmri, 'config/auto-reboot') == 'true'
     if auto_reboot:
         try:
             reboot_hook = smf.get_prop(myfmri, 'config/reboot-check-hook')
-            if not os.access(reboot_hook, os.X_OK):
+            if reboot_hook and not os.access(reboot_hook, os.X_OK):
                 print(f'{reboot_hook} not executable')
                 reboot_hook = False
         except smf.NonzeroExitException:
@@ -64,7 +65,7 @@ def start():
 
     try:
         postupdate_hook = smf.get_prop(myfmri, 'config/postupdate-hook')
-        if not os.access(postupdate_hook, os.X_OK):
+        if postupdate_hook and not os.access(postupdate_hook, os.X_OK):
             print(f'{postupdate_hook} not executable')
             postupdate_hook = False
     except smf.NonzeroExitException:
@@ -149,12 +150,16 @@ def start():
             # Attempt update of pkg(7) and retry
             pkg_status = update_pkg()
             if pkg_status == pkgdefs.EXIT_OK:
+                print('Retrying:', ' '.join(cmd), flush=True)
                 pkg_status = subprocess.call(cmd)
         if pkg_status != pkgdefs.EXIT_LOCKED:
             break
         print(f'Image locked, sleeping for {wait_secs} seconds', flush=True)
         time.sleep(wait_secs)
 
+    bename = None
+    new_be_created = False
+    new_be_activated = False
     try:
         with open(parsable_output) as pkg_out:
             pkgplan = json.loads(pkg_out.read())
@@ -173,13 +178,14 @@ def start():
     # if configured it is always run regardless pkg success or fail.
     if postupdate_hook:
         hook_cmd = f"{postupdate_hook} {pkg_image} {pkg_status} {bename}"
-        print(f'Running postupdate-hook {hook_cmd}')
+        print(f'Running postupdate-hook {hook_cmd}', flush=True)
         exitcode, output = subprocess.getstatusoutput(hook_cmd)
-        print(output)
+        print(output, flush=True)
 
     if pkg_status == pkgdefs.EXIT_NOP:
         return smf_include.SMF_EXIT_OK
-    elif pkg_status == pkgdefs.EXIT_PKG_OOD:
+
+    if pkg_status == pkgdefs.EXIT_PKG_OOD:
         message = 'pkg(7) appears to be out of date, and should be updated.'
         smf_include.smf_method_exit(smf_include.SMF_EXIT_DEGRADED,
                                     'constrained', message)
@@ -206,7 +212,7 @@ def start():
     if new_be_created and new_be_activated and auto_reboot:
         if reboot_hook:
             hook_cmd = f"{reboot_hook} {bename}"
-            print(f'Running reboot-check-hook {hook_cmd}')
+            print(f'Running reboot-check-hook {hook_cmd}', flush=True)
             exitcode, output = subprocess.getstatusoutput(hook_cmd)
             if exitcode != 0:
                 print(output)
@@ -217,14 +223,14 @@ def start():
                 try:
                     bemgmt.BEManager().destroy(bename)
                 except bemgmt.be_errors.BeMgmtError as e:
-                    print(f'BE destroy failed: {e}')
-                    pass
+                    print(f'BE destroy failed: {e}', flush=True)
+
                 message = f'Reboot Hook failed {exitcode}, see service log'
                 smf_include.smf_method_exit(smf_include.SMF_EXIT_DEGRADED,
                                             'reboot-check-hook-failed',
                                             message)
 
-        print('Reboot after auto update')
+        print('Reboot after auto update', flush=True)
         msg = myfmri + ' : automatic reboot after update'
         try:
             grace_period = smf.get_prop(myfmri, 'config/shutdown-grace-period')
@@ -232,7 +238,7 @@ def start():
             grace_period = 60
         subprocess.call(['/usr/sbin/shutdown', '-yrg', grace_period, msg])
     elif not new_be_created:
-        print('Auto update completed, no reboot needed')
+        print('Auto update completed, no reboot needed', flush=True)
 
     return smf_include.SMF_EXIT_OK
 
