@@ -199,16 +199,11 @@ $(PDIR)/.resolved: $(DEPENDED)
 	$(PKGDEPEND) resolve -e external_deps.txt -m $(DEPENDED)
 	touch $@
 
-# The final run of pkgmogrify to strip those versions that
-# do not matter.
-$(PDIR)/%.strip: $(PDIR)/.resolved
-	$(PKGMOGRIFY) -I transforms -O $@ strip_versions $(@:%.strip=%.dep.res)
-
 # The main publication rule
-$(PDIR)/%.pub: $(PDIR)/%.strip $(PKGDEST)/repo
+$(PDIR)/%.pub: $(PDIR)/.resolved $(PKGDEST)/repo
 	$(PKGSEND) -s file://$(PKGDEST)/repo publish -d $(PKGROOT) \
 		-d license_files -T \*.py --fmri-in-manifest --no-index \
-		--no-catalog $(@:%.pub=%.strip)
+		--no-catalog $(@:%.pub=%.dep.res)
 	touch $@
 
 # Compare the proto area with the package manifests; if they've got different

@@ -42,9 +42,6 @@
     pkg:/library/python/pycurl
     pkg:/library/python/pycurl-311
     pkg:/library/python/pycurl-313
-    pkg:/library/python/pyopenssl
-    pkg:/library/python/pyopenssl-311
-    pkg:/library/python/pyopenssl-313
     pkg:/library/python/rapidjson
     pkg:/library/python/rapidjson-311
     pkg:/library/python/rapidjson-313

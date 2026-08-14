@@ -20,13 +20,12 @@
 # CDDL HEADER END
 #
 
-# Copyright (c) 2007, 2025, Oracle and/or its affiliates.
+# Copyright (c) 2007, 2026, Oracle and/or its affiliates.
 
 """
 Misc utility functions used by the packaging system.
 """
 
-import OpenSSL.crypto as osc
 import calendar
 import collections
 import datetime
@@ -1249,42 +1248,27 @@ def build_cert(path, uri=None, pub=None):
         raise
 
     try:
-        return osc.load_certificate(osc.FILETYPE_PEM, certdata)
-    except osc.Error as e:
-        # OpenSSL.crypto.Error
+        return x509.load_pem_x509_certificate(certdata, default_backend())
+    except ValueError:
         raise api_errors.InvalidCertificate(path, uri=uri,
             publisher=pub)
 
 
 def validate_ssl_cert(ssl_cert, prefix=None, uri=None):
-    """Validates the indicated certificate and returns a pyOpenSSL object
+    """Validates the indicated certificate and returns a cryptography object
     representing it if it is valid."""
     cert = build_cert(ssl_cert, uri=uri, pub=prefix)
 
-    if cert.has_expired():
+    now = datetime.datetime.now(datetime.timezone.utc)
+    if cert.not_valid_after_utc < now:
         raise api_errors.ExpiredCertificate(ssl_cert, uri=uri,
             publisher=prefix)
 
-    now = datetime.datetime.utcnow()
-    nb = cert.get_notBefore()
-    # strptime's first argument must be str
-    t = time.strptime(force_str(nb), "%Y%m%d%H%M%SZ")
-    nbdt = datetime.datetime.utcfromtimestamp(
-        calendar.timegm(t))
-
-    # PyOpenSSL's has_expired() doesn't validate the notBefore
-    # time on the certificate.  Don't ask me why.
-
-    if nbdt > now:
+    if cert.not_valid_before_utc > now:
         raise api_errors.NotYetValidCertificate(ssl_cert, uri=uri,
             publisher=prefix)
 
-    na = cert.get_notAfter()
-    t = time.strptime(force_str(na), "%Y%m%d%H%M%SZ")
-    nadt = datetime.datetime.utcfromtimestamp(
-        calendar.timegm(t))
-
-    diff = nadt - now
+    diff = cert.not_valid_after_utc - now
 
     if diff <= MIN_WARN_DAYS:
         raise api_errors.ExpiringCertificate(ssl_cert, uri=uri,
