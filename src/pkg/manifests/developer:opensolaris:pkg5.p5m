@@ -48,7 +48,6 @@ depend type=require fmri=pkg:/library/python/prettytable
 depend type=require fmri=pkg:/library/python/pybonjour
 depend type=require fmri=pkg:/library/python/pycodestyle
 depend type=require fmri=pkg:/library/python/pycurl
-depend type=require fmri=pkg:/library/python/pyopenssl
 depend type=require fmri=pkg:/library/python/rapidjson
 depend type=require fmri=pkg:/library/python/rpdb
 depend type=require fmri=pkg:/package/svr4
