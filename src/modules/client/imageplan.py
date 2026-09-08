@@ -5583,7 +5583,7 @@ class ImagePlan:
                         executed_pp), self.image)
             except KeyboardInterrupt:
                 raise
-            except se.ProblematicPermissionsIndexException:
+            except se.ProblematicPermissionsIndexException as e:
                 # ProblematicPermissionsIndexException
                 # is included here as there's little
                 # chance that trying again will fix this
